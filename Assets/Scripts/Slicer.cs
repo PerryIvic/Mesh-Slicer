@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using static UnityEngine.Mesh;
 using UnityEngine.UIElements;
+using static UnityEngine.Networking.UnityWebRequest;
+using static UnityEngine.Random;
 
 /*
  * 1. Find intersection Positions
@@ -29,14 +31,6 @@ public class Slicer : MonoBehaviour
         public List<Vector2> uvs = new List<Vector2>();
 
         public List<int> indices = new List<int>();
-
-        public void AddVertex(Vertex vert)
-        {
-            vertices.Add(vert.v);
-            normals.Add(vert.n);
-            uvs.Add(vert.uv);
-            indices.Add(vertices.IndexOf(vert.v));
-        }
     }
     private struct Vertex
     {
@@ -80,6 +74,16 @@ public class Slicer : MonoBehaviour
         RotatePlane();
     }
 
+    private void OnDrawGizmos()
+    {
+        if (planeCollider == null)
+            return;
+        //
+        //Gizmos.color = Color.blue;
+        //
+        //Gizmos.DrawMesh(planeCollider.sharedMesh, transform.position, transform.rotation);
+    }
+
     private void RotatePlane()
     {
         Vector3 inversedDelta = (Input.mousePosition - previousMousePosition) * -1f;
@@ -95,7 +99,7 @@ public class Slicer : MonoBehaviour
 
         if(hits.Length == 1)
         {
-            GameObject hitObj = hits[0].gameObject; 
+            GameObject hitObj = hits[0].gameObject;
 
             Plane plane = new Plane();
 
@@ -106,6 +110,8 @@ public class Slicer : MonoBehaviour
 
             MeshData positiveMeshData = new MeshData();
             MeshData negativeMeshData = new MeshData();
+
+            List<Vertex> intersectingVerts = new List<Vertex>();
 
             Mesh mesh = hits[0].GetComponent<MeshFilter>().mesh;
             for(int i = 0; i < mesh.triangles.Length; i += 3)
@@ -126,9 +132,9 @@ public class Slicer : MonoBehaviour
                 Vector2 uv2 = mesh.uv[triIndex2];
                 Vector2 uv3 = mesh.uv[triIndex3];
 
-                Vertex vert1 = new Vertex(v1, n1, uv1/*, triIndex1*/);
-                Vertex vert2 = new Vertex(v2, n2, uv2/*, triIndex2*/);
-                Vertex vert3 = new Vertex(v3, n3, uv3/*, triIndex3*/);
+                Vertex vert1 = new Vertex(v1, n1, uv1);
+                Vertex vert2 = new Vertex(v2, n2, uv2);
+                Vertex vert3 = new Vertex(v3, n3, uv3);
 
                 bool vSide1 = plane.GetSide(v1);
                 bool vSide2 = plane.GetSide(v2);
@@ -151,7 +157,7 @@ public class Slicer : MonoBehaviour
                     {
                         intersection1 = CreateVertexIntersectingPlane(plane, vert2, vert3);
                         intersection2 = CreateVertexIntersectingPlane(plane, vert1, vert3);
-                        
+
                         AddTriangleToMeshData(ref selectedMesh1, vert1, vert2, intersection1);
                         AddTriangleToMeshData(ref selectedMesh1, vert1, intersection1, intersection2);
                         AddTriangleToMeshData(ref selectedMesh2, intersection1, vert3, intersection2);
@@ -160,7 +166,7 @@ public class Slicer : MonoBehaviour
                     {
                         intersection1 = CreateVertexIntersectingPlane(plane, vert1, vert2);
                         intersection2 = CreateVertexIntersectingPlane(plane, vert3, vert2);
-                        
+
                         AddTriangleToMeshData(ref selectedMesh1, vert1, intersection1, vert3);
                         AddTriangleToMeshData(ref selectedMesh1, intersection1, intersection2, vert3);
                         AddTriangleToMeshData(ref selectedMesh2, intersection1, vert2, intersection2);
@@ -169,19 +175,23 @@ public class Slicer : MonoBehaviour
                     {
                         intersection1 = CreateVertexIntersectingPlane(plane, vert2, vert1);
                         intersection2 = CreateVertexIntersectingPlane(plane, vert3, vert1);
-                        
+
                         AddTriangleToMeshData(ref selectedMesh1, vert1, intersection1, intersection2);
                         AddTriangleToMeshData(ref selectedMesh2, intersection1, vert2, vert3);
                         AddTriangleToMeshData(ref selectedMesh2, intersection1, vert3, intersection2);
                     }
 
-                    // TODO add intersection points to list.
-                    // Then create center point to create triangles around, creating a wall for the sliced area of the mesh
+                    intersectingVerts.Add(intersection1);
+                    intersectingVerts.Add(intersection2);
                 }
             }
 
+            //CoverSlicedArea(intersectingVerts, positiveMeshData, negativeMeshData, plane);
+
             CreateGameObjectUsingMeshData(positiveMeshData, hits[0].gameObject);
             CreateGameObjectUsingMeshData(negativeMeshData, hits[0].gameObject);
+
+            Destroy(hitObj);
         }
         else
         {
@@ -189,22 +199,11 @@ public class Slicer : MonoBehaviour
         }
     }
 
-    private void OnDrawGizmos()
-    {
-        //if (planeCollider == null)
-        //    return;
-        //
-        //Gizmos.color = Color.blue;
-        //
-        //Gizmos.DrawMesh(planeCollider.sharedMesh, transform.position, transform.rotation);
-    }
-
-    // Depricated
     Vector3 GetIntersectionPointRaycast(Plane plane, Vector3 position, Vector3 direction) 
     {
         Ray ray = new Ray(position, direction);
-        float distance = 0;
 
+        float distance = 0;
         plane.Raycast(ray, out distance);
 
         return ray.GetPoint(distance);
@@ -243,22 +242,28 @@ public class Slicer : MonoBehaviour
         Vertex result = new Vertex();
 
         result.v = intersectionPoint;
-        result.n = start.n;
-        result.uv = start.uv;
-        //result.n = Vector3.Lerp(start.n, end.n, percentage);
-        //result.uv = Vector2.Lerp(start.uv, end.uv, percentage);
+
+        // TODO normals need to be calculated correctly
+        Quaternion _cw90 = Quaternion.AngleAxis(90f, Vector3.forward);
+        result.n = _cw90 * CalculateNormalFromTriangle(intersectionPoint, start.v, end.v);
+        result.uv = /*Vector2.Lerp(start.uv, end.uv, percentage)*/ Vector2.zero;
 
         return result;
     }
 
-    void AddTriangleToMeshData(ref MeshData meshData, Vertex vert1, Vertex vert2, Vertex vert3)
+    void AddTriangleToMeshData(ref MeshData meshData, Vertex vert1, Vertex vert2, Vertex vert3, bool shouldBePlaceFirst = false)
     {
-        AddVertexToMeshData(ref meshData, vert1);
-        AddVertexToMeshData(ref meshData, vert2);
-        AddVertexToMeshData(ref meshData, vert3);
+        if(shouldBePlaceFirst)
+        {
+            ShiftVertexesForward(ref meshData);
+        }
+
+        AddVertexToMeshData(ref meshData, vert1, shouldBePlaceFirst);
+        AddVertexToMeshData(ref meshData, vert2, shouldBePlaceFirst);
+        AddVertexToMeshData(ref meshData, vert3, shouldBePlaceFirst);
     }
 
-    void AddVertexToMeshData(ref MeshData meshData, Vertex vert)
+    void AddVertexToMeshData(ref MeshData meshData, Vertex vert, bool shouldUseIndices)
     {
         int triIndex = meshData.vertices.IndexOf(vert.v);
 
@@ -269,7 +274,54 @@ public class Slicer : MonoBehaviour
         }
         else
         {
-            meshData.AddVertex(vert);
+            if(shouldUseIndices)
+            {
+                int index = vert.index;
+                meshData.vertices.Insert(index, vert.v);
+                meshData.normals.Insert(index, vert.n);
+                meshData.uvs.Insert(index, vert.uv);
+                meshData.indices.Insert(index, index); 
+            }
+            else
+            {
+                meshData.vertices.Add(vert.v);
+                meshData.normals.Add(vert.n);
+                meshData.uvs.Add(vert.uv);
+
+                int index = meshData.vertices.IndexOf(vert.v);
+                meshData.indices.Add(index);
+            }
+            
+        }
+    }
+
+    void CoverSlicedArea(List<Vertex> intersectingVerts, MeshData positiveMesh, MeshData negativeMesh, Plane plane)
+    {
+        // find middle point of intersection
+        Vertex center = new Vertex();
+        center.v = Vector3.zero;
+        foreach(Vertex vert in intersectingVerts)
+        {
+            center.v += vert.v;
+        }
+
+        center.v /= intersectingVerts.Count;
+        center.n = new Vector3(0, 1, 0);
+        center.uv = Vector2.zero;
+        center.index = 0;
+
+        //Create hull for sliced area
+        for(int i = 0; i < intersectingVerts.Count; i += 2)
+        {
+            Vertex vert1 = intersectingVerts[i];
+            Vertex vert2 = intersectingVerts[i + 1];
+
+            vert1.index = 1;
+            vert2.index = 2;
+
+            // TODO handle triangle wind order depending on where plane sliced the mesh
+            AddTriangleToMeshData(ref positiveMesh, center, vert1, vert2, true);
+            AddTriangleToMeshData(ref negativeMesh, center, vert2, vert1, true);
         }
     }
 
@@ -279,22 +331,48 @@ public class Slicer : MonoBehaviour
         go.AddComponent<MeshFilter>();
         go.AddComponent<MeshRenderer>();
         go.AddComponent<MeshCollider>();
+        //go.AddComponent<Rigidbody>();
+        //
+        //Rigidbody rb = go.GetComponent<Rigidbody>();
+        //rb.useGravity = true;
+        //rb.isKinematic = false;
 
         go.GetComponent<MeshRenderer>().material = parentObject.GetComponent<MeshRenderer>().material;
 
         Mesh mesh = go.GetComponent<MeshFilter>().mesh;
-
         mesh.vertices = meshData.vertices.ToArray();
         mesh.normals = meshData.normals.ToArray();
         mesh.uv = meshData.uvs.ToArray();
         mesh.triangles = meshData.indices.ToArray();
 
-        go.GetComponent<MeshCollider>().sharedMesh = mesh;
+        mesh.RecalculateNormals();
+
+        MeshCollider meshColl = go.GetComponent<MeshCollider>();
+        meshColl.sharedMesh = mesh;
+        meshColl.convex = true;
 
         go.transform.position = parentObject.transform.position;
         go.transform.localScale = parentObject.transform.localScale;
         go.transform.rotation = parentObject.transform.rotation;
         go.tag = parentObject.tag;
         go.name = parentObject.name;
+    }
+
+    void ShiftVertexesForward(ref MeshData meshData)
+    {
+        for(int i = 0; i < meshData.indices.Count; i += 3)
+        {
+            meshData.indices[i] += 3;
+            meshData.indices[i + 1] += 3;
+            meshData.indices[i + 2] += 3;
+        }
+    }
+
+    // Calculates normal using the points of a triangle
+    Vector3 CalculateNormalFromTriangle(Vector3 a, Vector3 b, Vector3 c)
+    {
+        Vector3 sideAB = b - a;
+        Vector3 sideAC = c - a;
+        return Vector3.Cross(sideAB, sideAC).normalized;
     }
 }
