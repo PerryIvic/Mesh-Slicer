@@ -23,31 +23,6 @@ using static UnityEngine.Random;
 
 public class Slicer : MonoBehaviour
 {
-    private class MeshData
-    {
-        public List<Vector3> vertices = new List<Vector3>();
-        public List<Vector3> normals = new List<Vector3>();
-
-        public List<Vector2> uvs = new List<Vector2>();
-
-        public List<int> indices = new List<int>();
-    }
-    private struct Vertex
-    {
-        public Vector3 v;
-        public Vector3 n;
-        public Vector2 uv;
-        public int index;
-
-        public Vertex(Vector3 vertice, Vector3 normal, Vector2 uvCoords, int triangleIndex = -1)
-        {
-            v = vertice;
-            n = normal;
-            uv = uvCoords;
-            index = triangleIndex;
-        }
-    }
-
     public LayerMask collisionMask;
 
     [SerializeField]
@@ -97,282 +72,368 @@ public class Slicer : MonoBehaviour
         string name = LayerMask.LayerToName(collisionMask);
         Collider[] hits = Physics.OverlapBox(transform.position, planeCollider.bounds.extents, transform.rotation, collisionMask);
 
-        if(hits.Length == 1)
+        for(int i = 0; i < hits.Length; ++i)
         {
-            GameObject hitObj = hits[0].gameObject;
-
-            Plane plane = new Plane();
+            GameObject hitObj = hits[i].gameObject;
 
             Vector3 localPlaneNormal = hitObj.transform.InverseTransformDirection(transform.up);
             Vector3 localPlanePosition = hitObj.transform.InverseTransformPoint(transform.position);
 
-            plane.SetNormalAndPosition(localPlaneNormal, localPlanePosition); 
+            Plane cutPlane = new Plane();
+            cutPlane.SetNormalAndPosition(localPlaneNormal, localPlanePosition);
 
             MeshData positiveMeshData = new MeshData();
             MeshData negativeMeshData = new MeshData();
+            List<Vector3> intersectingVerts = new List<Vector3>();
 
-            List<Vertex> intersectingVerts = new List<Vertex>();
+            Mesh originalMesh = hitObj.GetComponent<MeshFilter>().mesh;
 
-            Mesh mesh = hits[0].GetComponent<MeshFilter>().mesh;
-            for(int i = 0; i < mesh.triangles.Length; i += 3)
-            {
-                int triIndex1 = mesh.triangles[i];
-                int triIndex2 = mesh.triangles[i + 1];
-                int triIndex3 = mesh.triangles[i + 2];
+            SliceMesh(originalMesh, positiveMeshData, negativeMeshData, cutPlane, intersectingVerts);
+            FillSlicedArea(originalMesh, intersectingVerts, cutPlane, positiveMeshData, negativeMeshData);
 
-                Vector3 v1 = mesh.vertices[triIndex1];
-                Vector3 v2 = mesh.vertices[triIndex2];
-                Vector3 v3 = mesh.vertices[triIndex3];
-
-                Vector3 n1 = mesh.normals[triIndex1];
-                Vector3 n2 = mesh.normals[triIndex2];
-                Vector3 n3 = mesh.normals[triIndex3];
-
-                Vector2 uv1 = mesh.uv[triIndex1];
-                Vector2 uv2 = mesh.uv[triIndex2];
-                Vector2 uv3 = mesh.uv[triIndex3];
-
-                Vertex vert1 = new Vertex(v1, n1, uv1);
-                Vertex vert2 = new Vertex(v2, n2, uv2);
-                Vertex vert3 = new Vertex(v3, n3, uv3);
-
-                bool vSide1 = plane.GetSide(v1);
-                bool vSide2 = plane.GetSide(v2);
-                bool vSide3 = plane.GetSide(v3);
-
-                if (vSide1 == vSide2 && vSide1 == vSide3) // all vertices are on the same side
-                {
-                    MeshData selectedData = (vSide1) ? positiveMeshData : negativeMeshData;
-                    AddTriangleToMeshData(ref selectedData, vert1, vert2, vert3);
-                }
-                else
-                {
-                    Vertex intersection1;
-                    Vertex intersection2;
-
-                    MeshData selectedMesh1 = (vSide1) ? positiveMeshData : negativeMeshData;
-                    MeshData selectedMesh2 = (vSide1) ? negativeMeshData : positiveMeshData;
-
-                    if (vSide1 == vSide2) // vert1 and vert2 are on the same side
-                    {
-                        intersection1 = CreateVertexIntersectingPlane(plane, vert2, vert3);
-                        intersection2 = CreateVertexIntersectingPlane(plane, vert1, vert3);
-
-                        AddTriangleToMeshData(ref selectedMesh1, vert1, vert2, intersection1);
-                        AddTriangleToMeshData(ref selectedMesh1, vert1, intersection1, intersection2);
-                        AddTriangleToMeshData(ref selectedMesh2, intersection1, vert3, intersection2);
-                    }
-                    else if(vSide1 == vSide3) // vert1 and vert3 are on the same side
-                    {
-                        intersection1 = CreateVertexIntersectingPlane(plane, vert1, vert2);
-                        intersection2 = CreateVertexIntersectingPlane(plane, vert3, vert2);
-
-                        AddTriangleToMeshData(ref selectedMesh1, vert1, intersection1, vert3);
-                        AddTriangleToMeshData(ref selectedMesh1, intersection1, intersection2, vert3);
-                        AddTriangleToMeshData(ref selectedMesh2, intersection1, vert2, intersection2);
-                    }
-                    else // vert1 is alone
-                    {
-                        intersection1 = CreateVertexIntersectingPlane(plane, vert2, vert1);
-                        intersection2 = CreateVertexIntersectingPlane(plane, vert3, vert1);
-
-                        AddTriangleToMeshData(ref selectedMesh1, vert1, intersection1, intersection2);
-                        AddTriangleToMeshData(ref selectedMesh2, intersection1, vert2, vert3);
-                        AddTriangleToMeshData(ref selectedMesh2, intersection1, vert3, intersection2);
-                    }
-
-                    intersectingVerts.Add(intersection1);
-                    intersectingVerts.Add(intersection2);
-                }
-            }
-
-            //CoverSlicedArea(intersectingVerts, positiveMeshData, negativeMeshData, plane);
-
-            CreateGameObjectUsingMeshData(positiveMeshData, hits[0].gameObject);
-            CreateGameObjectUsingMeshData(negativeMeshData, hits[0].gameObject);
+            CreateGameObjectUsingMeshData(positiveMeshData, hitObj.gameObject);
+            CreateGameObjectUsingMeshData(negativeMeshData, hitObj.gameObject);
 
             Destroy(hitObj);
         }
-        else
-        {
-            Debug.Log("Unhandled Slice hits: " + hits.Length.ToString());
-        }
     }
 
-    Vector3 GetIntersectionPointRaycast(Plane plane, Vector3 position, Vector3 direction) 
+    void SliceMesh(Mesh originalMesh, MeshData positiveMeshData, MeshData negativeMeshData, Plane cutPlane, List<Vector3> intersectingVerts)
     {
-        Ray ray = new Ray(position, direction);
-
-        float distance = 0;
-        plane.Raycast(ray, out distance);
-
-        return ray.GetPoint(distance);
-    }
-
-    Vector3 GetIntersectionPoint(Plane plane, Vector3 start, Vector3 end)
-    {
-        Vector3 result;
-
-        Vector3 startToEnd = start - end;
-        float t = (plane.distance - Vector3.Dot(plane.normal, start)) / Vector3.Dot(plane.normal, startToEnd);
-
-        if (t >= -float.Epsilon && t <= (1 + float.Epsilon))
+        for(int subIndex = 0; subIndex < originalMesh.subMeshCount; ++subIndex)
         {
-            result = start + t * startToEnd;
-        }
-        else
-        {
-            result = Vector3.zero;
-        }
-
-        return result;
-    }
-
-    // Adds vertice, normal and uv to vertex. TriangleIndex not included!
-    Vertex CreateVertexIntersectingPlane(Plane plane, Vertex start, Vertex end)
-    {
-        Vector3 direction = (end.v - start.v).normalized;
-        Vector3 intersectionPoint = GetIntersectionPointRaycast(plane, start.v, direction);
-        //Vector3 intersectionPoint = GetIntersectionPoint(plane, start.v, end.v);
-
-        float distance = (end.v - start.v).magnitude;
-        float partialDistance = (intersectionPoint - start.v).magnitude;
-        float percentage = partialDistance / distance;
-
-        Vertex result = new Vertex();
-
-        result.v = intersectionPoint;
-
-        // TODO normals need to be calculated correctly
-        Quaternion _cw90 = Quaternion.AngleAxis(90f, Vector3.forward);
-        result.n = _cw90 * CalculateNormalFromTriangle(intersectionPoint, start.v, end.v);
-        result.uv = /*Vector2.Lerp(start.uv, end.uv, percentage)*/ Vector2.zero;
-
-        return result;
-    }
-
-    void AddTriangleToMeshData(ref MeshData meshData, Vertex vert1, Vertex vert2, Vertex vert3, bool shouldBePlaceFirst = false)
-    {
-        if(shouldBePlaceFirst)
-        {
-            ShiftVertexesForward(ref meshData);
-        }
-
-        AddVertexToMeshData(ref meshData, vert1, shouldBePlaceFirst);
-        AddVertexToMeshData(ref meshData, vert2, shouldBePlaceFirst);
-        AddVertexToMeshData(ref meshData, vert3, shouldBePlaceFirst);
-    }
-
-    void AddVertexToMeshData(ref MeshData meshData, Vertex vert, bool shouldUseIndices)
-    {
-        int triIndex = meshData.vertices.IndexOf(vert.v);
-
-        // if vertex already exists just add a reference to an existing vertex
-        if (triIndex > -1)
-        {
-            meshData.indices.Add(triIndex);
-        }
-        else
-        {
-            if(shouldUseIndices)
+            int[] subMeshtriangles = originalMesh.GetTriangles(subIndex);
+            for(int i = 0; i < subMeshtriangles.Length; i += 3)
             {
-                int index = vert.index;
-                meshData.vertices.Insert(index, vert.v);
-                meshData.normals.Insert(index, vert.n);
-                meshData.uvs.Insert(index, vert.uv);
-                meshData.indices.Insert(index, index); 
+                int triIndex1 = subMeshtriangles[i];
+                int triIndex2 = subMeshtriangles[i + 1];
+                int triIndex3 = subMeshtriangles[i + 2];
+
+                TriangleData triangle = TriangleData.GetTriangleData(originalMesh, triIndex1, triIndex2, triIndex3, i);
+
+                bool[] vertSides =
+                {
+                    cutPlane.GetSide(triangle.vertices[0]),
+                    cutPlane.GetSide(triangle.vertices[1]),
+                    cutPlane.GetSide(triangle.vertices[2])
+                };
+
+                switch(vertSides[0])
+                {
+                    case true when vertSides[1] && vertSides[2]: // all vertices are on the positive side of the plane
+                        {
+                            positiveMeshData.AddTriangleData(triangle);
+                            break;
+                        }
+                    case false when !vertSides[1] && !vertSides[2]: // all vertices are on the negative side of the plane
+                        {
+                            negativeMeshData.AddTriangleData(triangle);
+                            break;
+                        }
+                    default:
+                        {
+                            SliceTriangle(cutPlane, triangle, vertSides, positiveMeshData, negativeMeshData, intersectingVerts);
+                            break;
+                        }
+                }
+            }
+        }
+    }
+
+    void FillSlicedArea(Mesh originalMesh, List<Vector3> intersectingVerts, Plane cutPlane, MeshData positiveMeshData, MeshData negativeMeshData)
+    {
+        List<Vector3> vertices = new List<Vector3>();
+        List<Vector3> polygon = new List<Vector3>();
+
+        for(int i = 0; i < intersectingVerts.Count; ++i)
+        {
+            if (!vertices.Contains(intersectingVerts[i]))
+            {
+                polygon.Clear();
+                polygon.Add(intersectingVerts[i]);
+                polygon.Add(intersectingVerts[i + 1]);
+
+                vertices.Add(intersectingVerts[i]);
+                vertices.Add(intersectingVerts[i + 1]);
+
+                EvaluatePairs(intersectingVerts, vertices, polygon);
+                Fill(originalMesh, vertices, cutPlane, positiveMeshData, negativeMeshData);
+            }
+        }
+    }
+
+    void SliceTriangle(Plane cutPlane, TriangleData triangle, bool[] vertSides, MeshData positiveMeshData, MeshData negativeMeshData, List<Vector3> intersectingVertices)
+    {
+        TriangleData positiveTriangle = new TriangleData(new Vector3[2], new Vector3[2], new Vector2[2], triangle.subMeshIndex);
+        TriangleData negativeTriangle = new TriangleData(new Vector3[2], new Vector3[2], new Vector2[2], triangle.subMeshIndex);
+
+        SortVerticesIntoTriangles(triangle, vertSides, positiveTriangle, negativeTriangle);
+
+        // Calculate points intersecting triangle
+        float hitDistance;
+        Vector3 leftVert = GetVerticeRayCastPlane(cutPlane, positiveTriangle.vertices[0], negativeTriangle.vertices[0], out hitDistance);
+        intersectingVertices.Add(leftVert);
+
+        float percentage = hitDistance / (positiveTriangle.vertices[0] - negativeTriangle.vertices[0]).magnitude;
+        Vector3 leftNormal = Vector3.Lerp(positiveTriangle.normals[0], negativeTriangle.normals[0], percentage);
+        Vector2 leftUV = Vector2.Lerp(positiveTriangle.uvs[0], negativeTriangle.uvs[0], percentage);
+
+        Vector3 rightVert = GetVerticeRayCastPlane(cutPlane, positiveTriangle.vertices[1], negativeTriangle.vertices[1], out hitDistance);
+        intersectingVertices.Add(rightVert);
+
+        percentage = hitDistance / (positiveTriangle.vertices[1] - negativeTriangle.vertices[1]).magnitude;
+        Vector3 rightNormal = Vector3.Lerp(positiveTriangle.normals[1], negativeTriangle.normals[1], percentage);
+        Vector2 rightUV = Vector2.Lerp(positiveTriangle.uvs[1], negativeTriangle.uvs[1], percentage);
+
+
+        Vector3[] currentVertices = { positiveTriangle.vertices[0], leftVert, rightVert };
+        Vector3[] currentNormals = { positiveTriangle.normals[0], leftNormal, rightNormal };
+        Vector2[] currentUVs = { positiveTriangle.uvs[0], leftUV, rightUV };
+
+        TriangleData currentTriangle = new TriangleData(currentVertices, currentNormals, currentUVs, triangle.subMeshIndex);
+
+        if (FlipValidTriangle(currentTriangle))
+        {
+            positiveMeshData.AddTriangleData(currentTriangle);
+        }
+
+        currentVertices = new Vector3[] { positiveTriangle.vertices[0], positiveTriangle.vertices[1], rightVert };
+        currentNormals = new Vector3[] { positiveTriangle.normals[0], positiveTriangle.normals[1], rightNormal };
+        currentUVs = new Vector2[] { positiveTriangle.uvs[0], positiveTriangle.uvs[1], rightUV };
+
+        currentTriangle = new TriangleData(currentVertices, currentNormals, currentUVs, triangle.subMeshIndex);
+        if (FlipValidTriangle(currentTriangle))
+        {
+            positiveMeshData.AddTriangleData(currentTriangle);
+        }
+
+        currentVertices = new Vector3[] { negativeTriangle.vertices[0], leftVert, rightVert };
+        currentNormals = new Vector3[] { negativeTriangle.normals[0], leftNormal, rightNormal };
+        currentUVs = new Vector2[] { negativeTriangle.uvs[0], leftUV, rightUV };
+
+        currentTriangle = new TriangleData(currentVertices, currentNormals, currentUVs, triangle.subMeshIndex);
+        if (FlipValidTriangle(currentTriangle))
+        {
+            negativeMeshData.AddTriangleData(currentTriangle);
+        }
+
+        currentVertices = new Vector3[] { negativeTriangle.vertices[0], negativeTriangle.vertices[1], rightVert };
+        currentNormals = new Vector3[] { negativeTriangle.normals[0], negativeTriangle.normals[1], rightNormal };
+        currentUVs = new Vector2[] { negativeTriangle.uvs[0], negativeTriangle.uvs[1], rightUV };
+
+        currentTriangle = new TriangleData(currentVertices, currentNormals, currentUVs, triangle.subMeshIndex);
+        if (FlipValidTriangle(currentTriangle))
+        {
+            negativeMeshData.AddTriangleData(currentTriangle);
+        }
+    }
+
+    bool FlipValidTriangle(TriangleData triangle)
+    {
+        bool isValid = (triangle.vertices[0] != triangle.vertices[1] && triangle.vertices[0] != triangle.vertices[2]);
+        if(isValid)
+        {
+            Vector3 ab = triangle.vertices[1] - triangle.vertices[0];
+            Vector3 ac = triangle.vertices[2] - triangle.vertices[0];
+            if(Vector3.Dot(Vector3.Cross(ab, ac), triangle.normals[0]) < 0)
+            {
+                FlipTriangle(triangle);
+            }
+        }
+
+        return isValid;    
+    }
+
+    void FlipTriangle(TriangleData triangle)
+    {
+        Vector3 tempVertice = triangle.vertices[2];
+        triangle.vertices[2] = triangle.vertices[0];
+        triangle.vertices[0] = tempVertice;
+
+        Vector3 tempNormal = triangle.normals[2];
+        triangle.normals[2] = triangle.normals[0];
+        triangle.normals[0] = tempNormal;
+
+        Vector2 tempUV = triangle.uvs[2];
+        triangle.uvs[2] = triangle.uvs[0];
+        triangle.uvs[0] = tempUV;
+    }
+
+    Vector3 GetVerticeRayCastPlane(Plane cutPlane, Vector3 start, Vector3 end, out float hitDistance)
+    {
+        cutPlane.Raycast(new Ray(start, (end - start).normalized), out hitDistance);
+
+        float percentage = hitDistance / (end - start).magnitude;
+        return Vector3.Lerp(start, end, percentage);
+    }
+
+    // Places vertices belonging to the same plane side into a seperate triangle
+    void SortVerticesIntoTriangles(TriangleData triangle, bool[] vertSides, TriangleData positiveTriangle, TriangleData negativeTriangle)
+    {
+        bool isOnPositiveSide = false;
+        bool isOnNegativeSide = false;
+        for (int i = 0; i < 3; ++i)
+        {
+            if (vertSides[i])
+            {
+                if (!isOnPositiveSide)
+                {
+                    isOnPositiveSide = true;
+
+                    positiveTriangle.vertices[0] = triangle.vertices[i];
+                    positiveTriangle.vertices[1] = triangle.vertices[i];
+
+                    positiveTriangle.normals[0] = triangle.normals[i];
+                    positiveTriangle.normals[1] = triangle.normals[i];
+
+                    positiveTriangle.uvs[0] = triangle.uvs[i];
+                    positiveTriangle.uvs[1] = triangle.uvs[i];
+                }
+                else
+                {
+                    positiveTriangle.vertices[1] = triangle.vertices[i];
+                    positiveTriangle.normals[1] = triangle.normals[i];
+                    positiveTriangle.uvs[1] = triangle.uvs[i];
+                }
             }
             else
             {
-                meshData.vertices.Add(vert.v);
-                meshData.normals.Add(vert.n);
-                meshData.uvs.Add(vert.uv);
+                if (!isOnNegativeSide)
+                {
+                    isOnNegativeSide = true;
 
-                int index = meshData.vertices.IndexOf(vert.v);
-                meshData.indices.Add(index);
+                    negativeTriangle.vertices[0] = triangle.vertices[i];
+                    negativeTriangle.vertices[1] = triangle.vertices[i];
+
+                    negativeTriangle.normals[0] = triangle.normals[i];
+                    negativeTriangle.normals[1] = triangle.normals[i];
+
+                    negativeTriangle.uvs[0] = triangle.uvs[i];
+                    negativeTriangle.uvs[1] = triangle.uvs[i];
+                }
+                else
+                {
+                    negativeTriangle.vertices[1] = triangle.vertices[i];
+                    negativeTriangle.normals[1] = triangle.normals[i];
+                    negativeTriangle.uvs[1] = triangle.uvs[i];
+                }
             }
-            
-        }
-    }
-
-    void CoverSlicedArea(List<Vertex> intersectingVerts, MeshData positiveMesh, MeshData negativeMesh, Plane plane)
-    {
-        // find middle point of intersection
-        Vertex center = new Vertex();
-        center.v = Vector3.zero;
-        foreach(Vertex vert in intersectingVerts)
-        {
-            center.v += vert.v;
-        }
-
-        center.v /= intersectingVerts.Count;
-        center.n = new Vector3(0, 1, 0);
-        center.uv = Vector2.zero;
-        center.index = 0;
-
-        //Create hull for sliced area
-        for(int i = 0; i < intersectingVerts.Count; i += 2)
-        {
-            Vertex vert1 = intersectingVerts[i];
-            Vertex vert2 = intersectingVerts[i + 1];
-
-            vert1.index = 1;
-            vert2.index = 2;
-
-            // TODO handle triangle wind order depending on where plane sliced the mesh
-            AddTriangleToMeshData(ref positiveMesh, center, vert1, vert2, true);
-            AddTriangleToMeshData(ref negativeMesh, center, vert2, vert1, true);
         }
     }
 
     void CreateGameObjectUsingMeshData(MeshData meshData, GameObject parentObject)
     {
         GameObject go = new GameObject();
-        go.AddComponent<MeshFilter>();
-        go.AddComponent<MeshRenderer>();
-        go.AddComponent<MeshCollider>();
-        //go.AddComponent<Rigidbody>();
-        //
-        //Rigidbody rb = go.GetComponent<Rigidbody>();
-        //rb.useGravity = true;
-        //rb.isKinematic = false;
-
-        go.GetComponent<MeshRenderer>().material = parentObject.GetComponent<MeshRenderer>().material;
-
-        Mesh mesh = go.GetComponent<MeshFilter>().mesh;
-        mesh.vertices = meshData.vertices.ToArray();
-        mesh.normals = meshData.normals.ToArray();
-        mesh.uv = meshData.uvs.ToArray();
-        mesh.triangles = meshData.indices.ToArray();
-
-        mesh.RecalculateNormals();
-
-        MeshCollider meshColl = go.GetComponent<MeshCollider>();
-        meshColl.sharedMesh = mesh;
-        meshColl.convex = true;
 
         go.transform.position = parentObject.transform.position;
         go.transform.localScale = parentObject.transform.localScale;
         go.transform.rotation = parentObject.transform.rotation;
         go.tag = parentObject.tag;
         go.name = parentObject.name;
+
+        go.AddComponent<MeshRenderer>();
+        go.AddComponent<MeshFilter>();
+        go.AddComponent<MeshCollider>();
+        //go.AddComponent<Rigidbody>();
+
+        //Rigidbody rb = go.GetComponent<Rigidbody>();
+        //rb.useGravity = true;
+        //rb.isKinematic = false;
+
+        Mesh finishedMesh = meshData.GetGeneratedMesh();
+
+        Material parentMaterial = parentObject.GetComponent<MeshRenderer>().material;
+        Material[] mats = new Material[finishedMesh.subMeshCount];
+        for (int i = 0; i < finishedMesh.subMeshCount; ++i)
+        {
+            mats[i] = parentMaterial;
+        }
+
+        MeshCollider meshColl = go.GetComponent<MeshCollider>();
+        meshColl.sharedMesh = finishedMesh;
+        meshColl.convex = true;
+
+        go.GetComponent<MeshRenderer>().materials = mats;
+        go.GetComponent<MeshFilter>().mesh = finishedMesh;
+        //go.GetComponent<MeshRenderer>().material = parentMaterial;
     }
 
-    void ShiftVertexesForward(ref MeshData meshData)
+    void EvaluatePairs( List<Vector3> intersectingVerts, List<Vector3> vertices, List<Vector3> polygons)
     {
-        for(int i = 0; i < meshData.indices.Count; i += 3)
+        bool isDone = false;
+        while(!isDone)
         {
-            meshData.indices[i] += 3;
-            meshData.indices[i + 1] += 3;
-            meshData.indices[i + 2] += 3;
+            isDone = true;
+            for(int i = 0; i < intersectingVerts.Count; i += 2)
+            {
+                if (intersectingVerts[i] == polygons[polygons.Count - 1] && !vertices.Contains(intersectingVerts[i + 1]))
+                {
+                    isDone = false;
+                    polygons.Add(intersectingVerts[i + 1]);
+                    vertices.Add(intersectingVerts[i + 1]);
+                }
+                else if(intersectingVerts[i + 1] == polygons[polygons.Count - 1] && !vertices.Contains(intersectingVerts[i]))
+                {
+                    isDone = false;
+                    polygons.Add(intersectingVerts[i]);
+                    vertices.Add(intersectingVerts[i]);
+                }
+            }
         }
     }
 
-    // Calculates normal using the points of a triangle
-    Vector3 CalculateNormalFromTriangle(Vector3 a, Vector3 b, Vector3 c)
+    void Fill(Mesh originalMesh, List<Vector3> polygon, Plane cutPlane, MeshData positiveMeshData, MeshData negativeMeshData)
     {
-        Vector3 sideAB = b - a;
-        Vector3 sideAC = c - a;
-        return Vector3.Cross(sideAB, sideAC).normalized;
+        Vector3 center = Vector3.zero;
+        foreach(Vector3 v in polygon)
+        {
+            center += v;
+        }
+        center /= polygon.Count;
+
+        Vector3 up = cutPlane.normal;
+        Vector3 left = Vector3.Cross(cutPlane.normal, up);
+
+        Vector3 displacement = Vector3.zero;
+        Vector2 uv1 = Vector2.zero;
+        Vector2 uv2 = Vector2.zero;
+
+        for (int i = 0; i < polygon.Count; ++i)
+        {
+            displacement = polygon[i] - center;
+            uv1 = new Vector2()
+            {
+                x = .5f + Vector3.Dot(displacement, left),
+                y = .5f + Vector3.Dot(displacement, up)
+            };
+
+            displacement = polygon[(i + 1) % polygon.Count] - center;
+            uv2 = new Vector2()
+            {
+                x = .5f + Vector3.Dot(displacement, left),
+                y = .5f + Vector3.Dot(displacement, up)
+            };
+
+            Vector3[] vertices = { polygon[i], polygon[(i + 1) % polygon.Count], center };
+            Vector3[] normals = { -cutPlane.normal, -cutPlane.normal, -cutPlane.normal };
+            Vector2[] uvs = { uv1, uv2, new Vector2(0.5f, 0.5f) };
+
+            TriangleData currentTriangle = new TriangleData(vertices, normals, uvs, originalMesh.subMeshCount + 1);
+
+            if (Vector3.Dot(Vector3.Cross(vertices[1] - vertices[0], vertices[2] - vertices[0]), normals[0]) < 0)
+            {
+                FlipTriangle(currentTriangle);
+            }
+            positiveMeshData.AddTriangleData(currentTriangle);
+
+            normals = new Vector3[] { cutPlane.normal, cutPlane.normal, cutPlane.normal };
+            currentTriangle = new TriangleData(vertices, normals, uvs, originalMesh.subMeshCount + 1);
+
+            if (Vector3.Dot(Vector3.Cross(vertices[1] - vertices[0], vertices[2] - vertices[0]), normals[0]) < 0)
+            {
+                FlipTriangle(currentTriangle);
+            }
+            negativeMeshData.AddTriangleData(currentTriangle);
+        }
     }
 }
