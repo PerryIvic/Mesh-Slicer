@@ -59,6 +59,10 @@ public class TriangleData
     public List<Vector2> uvs = new List<Vector2>();
     public int subMeshIndex = 0;
 
+    public TriangleData()
+    {
+    }
+
     public TriangleData(Vector3[] vertices, Vector3[] normals, Vector2[] uvs, int subMeshIndex)
     {
         this.vertices.AddRange(vertices);
