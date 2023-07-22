@@ -29,9 +29,13 @@ public class Slicer : MonoBehaviour
     public LayerMask collisionMask;
 
     [SerializeField]
-    float rotationSpeed = 0;
+    GameObject slicedObjectParent;
 
-    Vector3 previousMousePosition;
+    [SerializeField]
+    float sliceForce = 2;
+
+    [SerializeField]
+    float rotationSpeed = 0;
 
     MeshCollider planeCollider;
 
@@ -45,16 +49,18 @@ public class Slicer : MonoBehaviour
         transform.eulerAngles = new Vector3(0, -90, 0);
 
         planeHalfExtents = planeCollider.bounds.extents;
+
+        planeCollider.enabled = false;
     }
 
     // Update is called once per frame
     void Update()
     {
-        if(Input.GetMouseButtonDown(0)) // 0 is left mouse button
+        if (Input.GetMouseButtonDown(0)) // 0 is left mouse button
         {
             Slice();
         }
-
+        
         RotatePlane();
     }
 
@@ -75,10 +81,9 @@ public class Slicer : MonoBehaviour
 
     private void RotatePlane()
     {
-        Vector3 inversedDelta = (Input.mousePosition - previousMousePosition) * -1f;
-        previousMousePosition = Input.mousePosition;
-
-        transform.Rotate(0,0, rotationSpeed * inversedDelta.x * Time.deltaTime);
+        float inversedDeltaX = Input.GetAxis("Mouse X") * -1f;
+        
+        transform.Rotate(0,0, rotationSpeed * inversedDeltaX * Time.deltaTime);
     }
 
     void Slice()
@@ -104,8 +109,8 @@ public class Slicer : MonoBehaviour
             SliceMesh(originalMesh, positiveMeshData, negativeMeshData, cutPlane, intersectingPoints);
             FillSlicedArea(originalMesh, intersectingPoints, cutPlane, positiveMeshData, negativeMeshData);
 
-            CreateGameObjectUsingMeshData(positiveMeshData, hitObj.gameObject);
-            CreateGameObjectUsingMeshData(negativeMeshData, hitObj.gameObject);
+            CreateGameObjectUsingMeshData(positiveMeshData, hitObj.gameObject, cutPlane.normal * sliceForce);
+            CreateGameObjectUsingMeshData(negativeMeshData, hitObj.gameObject, -cutPlane.normal * sliceForce);
 
             Destroy(hitObj);
         }
@@ -536,7 +541,7 @@ public class Slicer : MonoBehaviour
         }
     }
 
-    void CreateGameObjectUsingMeshData(MeshData meshData, GameObject parentObject)
+    void CreateGameObjectUsingMeshData(MeshData meshData, GameObject parentObject, Vector3 startForce)
     {
         GameObject go = new GameObject();
 
@@ -549,11 +554,13 @@ public class Slicer : MonoBehaviour
         go.AddComponent<MeshRenderer>();
         go.AddComponent<MeshFilter>();
         go.AddComponent<MeshCollider>();
-        //go.AddComponent<Rigidbody>();
+        go.AddComponent<Rigidbody>();
 
-        //Rigidbody rb = go.GetComponent<Rigidbody>();
-        //rb.useGravity = true;
-        //rb.isKinematic = false;
+        Rigidbody rb = go.GetComponent<Rigidbody>();
+        rb.useGravity = true;
+        rb.isKinematic = false;
+
+        rb.AddForce(startForce, ForceMode.Impulse);
 
         Mesh finishedMesh = meshData.GetGeneratedMesh();
 
@@ -571,5 +578,7 @@ public class Slicer : MonoBehaviour
         go.GetComponent<MeshRenderer>().materials = mats;
         go.GetComponent<MeshFilter>().mesh = finishedMesh;
         //go.GetComponent<MeshRenderer>().material = parentMaterial;
+        
+        go.transform.SetParent(slicedObjectParent.transform);
     }
 }
