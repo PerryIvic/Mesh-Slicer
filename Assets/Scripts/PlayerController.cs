@@ -6,11 +6,16 @@ using UnityEngine;
 public class PlayerController : MonoBehaviour
 {
     [SerializeField]
+    GameObject playerObject;
+
+    [SerializeField]
     float mouseSensitivity = 2;
 
-    Vector3 cameraRotation;
-
     Slicer slicer;
+
+    // Camera Variables
+    Vector3 cameraRotation;
+    float playerDistance;
 
     // Start is called before the first frame update
     void Start()
@@ -20,6 +25,8 @@ public class PlayerController : MonoBehaviour
 
         slicer = GetComponentInChildren<Slicer>();
         slicer.gameObject.SetActive(false);
+
+        playerDistance = (transform.position - playerObject.transform.position).magnitude;
     }
 
     // Update is called once per frame
@@ -36,25 +43,23 @@ public class PlayerController : MonoBehaviour
 
         if(!Input.GetMouseButton(1))
         {
-            RotateCamera();
+            UpdateCamera();
         }
     }
 
-    void RotateCamera()
+    void UpdateCamera()
     {
         Vector3 delta = Vector3.zero;
         delta.x = Input.GetAxis("Mouse X");
         delta.y = Input.GetAxis("Mouse Y");
         delta *= mouseSensitivity;
 
-        cameraRotation.x += delta.x;
+        cameraRotation.x += delta.x; 
         cameraRotation.y += delta.y;
+        cameraRotation.y = Mathf.Clamp(cameraRotation.y, -90, 90);
 
-        cameraRotation.y = Mathf.Clamp(cameraRotation.y, -90f, 90);
+        transform.eulerAngles = new Vector3(-cameraRotation.y, transform.eulerAngles.y + delta.x, 0);
 
-        Quaternion quatX = Quaternion.AngleAxis(cameraRotation.x, Vector3.up);
-        Quaternion quatY = Quaternion.AngleAxis(cameraRotation.y, Vector3.left);
-
-        transform.localRotation = quatX * quatY;
+        transform.position = playerObject.transform.position - (transform.forward * playerDistance);
     }
 }
