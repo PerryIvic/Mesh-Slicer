@@ -41,12 +41,15 @@ public class Slicer : MonoBehaviour
 
     Vector3 planeHalfExtents = Vector3.zero;
 
+    bool isVisible = false;
+
+    public delegate void SliceEvent();
+    public SliceEvent onSlice;
+
     // Start is called before the first frame update
     void Start()
     {
         planeCollider = GetComponent<MeshCollider>();
-
-        transform.eulerAngles = new Vector3(0, -90, 0);
 
         planeHalfExtents = planeCollider.bounds.extents;
 
@@ -56,19 +59,22 @@ public class Slicer : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        if (Input.GetMouseButtonDown(0)) // 0 is left mouse button
+        if(isVisible)
         {
-            Slice();
+            if (Input.GetMouseButtonDown(0)) // 0 is left mouse button
+            {
+                Slice();
+            }
+
+            RotatePlane();
         }
-        
-        RotatePlane();
     }
 
     private void OnDrawGizmos()
     {
-        if (planeCollider == null)
-            return;
-        
+        //if (planeCollider == null)
+        //    return;
+        //
         //Gizmos.color = Color.blue;
         //
         //Matrix4x4 oldMatrix = Gizmos.matrix;
@@ -79,11 +85,18 @@ public class Slicer : MonoBehaviour
         //Gizmos.matrix = oldMatrix;
     }
 
+    public void SetVisibility(bool isVisible)
+    {
+        this.isVisible = isVisible;
+        MeshRenderer renderer = GetComponent<MeshRenderer>();
+        renderer.enabled = isVisible;
+    }
+
     private void RotatePlane()
     {
         float inversedDeltaX = Input.GetAxis("Mouse X") * -1f;
-        
-        transform.Rotate(0,0, rotationSpeed * inversedDeltaX * Time.deltaTime);
+
+        transform.Rotate(0, 0, rotationSpeed * inversedDeltaX * Time.deltaTime);
     }
 
     void Slice()
@@ -114,6 +127,8 @@ public class Slicer : MonoBehaviour
 
             Destroy(hitObj);
         }
+
+        onSlice?.Invoke();
     }
 
     void FillSlicedArea(Mesh originalMesh, List<Vector3> intersectingVerts, Plane cutPlane, MeshData positiveMeshData, MeshData negativeMeshData)
