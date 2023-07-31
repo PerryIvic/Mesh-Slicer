@@ -12,8 +12,12 @@ public class PlayerController : MonoBehaviour
 
     CharacterController playerController;
 
+    Transform cameraTransform;
+
     [SerializeField]
     Transform bladeTargetTransform;
+
+    Vector3 defaultBladeTargetPosition;
 
     [SerializeField]
     GameObject katanaObject;
@@ -22,18 +26,13 @@ public class PlayerController : MonoBehaviour
     Transform defaultCameraTarget;
 
     [SerializeField]
-    Transform defaultCameraPosition;
+    Transform defaultCameraTransform;
 
     [SerializeField]
-    Transform sliceModeCameraPosition;
+    Transform sliceModeCameraTransform;
 
     [SerializeField]
     float mouseSensitivity = 2;
-
-    float defaultFoV;
-
-    [SerializeField]
-    float sliceModeFov = 30;
 
     Slicer slicer;
     Vector3 defaultLocalSliceRotation;
@@ -42,8 +41,8 @@ public class PlayerController : MonoBehaviour
     Vector3 cameraRotation;
     float playerDistance;
 
-    Vector3 lerpPositionStart;
-    Vector3 lerpPositionEnd;
+    Vector3 lerpStartPosition;
+    Vector3 lerpEndPosition;
 
     // Character Movement Variables
     float turnSmoothTime = 0.1f;
@@ -76,7 +75,8 @@ public class PlayerController : MonoBehaviour
 
         slicer = GetComponentInChildren<Slicer>();
         slicer.onSlice += FlipBladeTargetPosition;
-        //slicer.SetVisibility(false);
+        slicer.SetVisibility(false);
+
         defaultLocalSliceRotation = new Vector3(0, 0, 90);
 
         playerDistance = (transform.position - defaultCameraTarget.transform.position).magnitude;
@@ -86,7 +86,12 @@ public class PlayerController : MonoBehaviour
 
         katanaObject.SetActive(false);
 
-        defaultFoV = Camera.main.fieldOfView;
+        cameraTransform = Camera.main.transform;
+
+        lerpStartPosition = defaultCameraTransform.position;
+        lerpEndPosition = defaultCameraTransform.position;
+
+        defaultBladeTargetPosition = bladeTargetTransform.localPosition;
     }
 
     private void OnDestroy()
@@ -99,8 +104,8 @@ public class PlayerController : MonoBehaviour
     {
         if(Input.GetMouseButtonDown(1))
         {
-            playerAnimator.SetFloat(animPosXTrigger, 1);
-            playerAnimator.SetFloat(animPosYTrigger, 0);
+            playerAnimator.SetFloat(animPosXTrigger, 0);
+            playerAnimator.SetFloat(animPosYTrigger, 1);
 
             SetAnimationOnce(animSliceModeTrigger);
 
@@ -111,9 +116,12 @@ public class PlayerController : MonoBehaviour
 
             sliceModeTransitionTimer = 0;
 
-            lerpPositionStart = transform.position;
-            lerpPositionEnd = sliceModeCameraPosition.position;
+            lerpStartPosition = defaultCameraTransform.position;
+            lerpEndPosition = sliceModeCameraTransform.position;
+
+            bladeTargetTransform.localPosition = defaultBladeTargetPosition;
         }
+
         if(Input.GetMouseButtonUp(1))
         {
             SetAnimationOnce(animIdleTrigger);
@@ -123,25 +131,23 @@ public class PlayerController : MonoBehaviour
 
             sliceModeTransitionTimer = 0;
 
-            lerpPositionStart = transform.position;
-            lerpPositionEnd = defaultCameraPosition.position;
+            lerpStartPosition = sliceModeCameraTransform.position;
+            lerpEndPosition = defaultCameraTransform.position;
         }
 
-        if(!Input.GetMouseButton(1))
+        if (!Input.GetMouseButton(1))
         {
             sliceModeTransitionTimer += Time.deltaTime;
             if (sliceModeTransitionTimer < sliceModeTransitionDuration)
             {
                 float lerpPercentage = Mathf.Min(sliceModeTransitionTimer / sliceModeTransitionDuration, 1);
-
-                //Camera.main.fieldOfView = Mathf.Lerp(sliceModeFov, defaultFoV, lerpPercentage);
-
-                transform.position = Vector3.Lerp(lerpPositionStart, lerpPositionEnd, lerpPercentage);
-                //cameraTransform.localEulerAngles = Vector3.Lerp(sliceModeCameraTarget.localEulerAngles, defaultCameraPosition.localEulerAngles, lerpPercentage);
+                cameraTransform.position = Vector3.Lerp(lerpStartPosition, lerpEndPosition, lerpPercentage);
             }
-
-            UpdateCamera();
-            UpdateCharacterMovement();
+            else
+            {
+                UpdateCamera();
+                UpdateCharacterMovement();
+            }
         }
         else
         {
@@ -150,14 +156,10 @@ public class PlayerController : MonoBehaviour
             playerObject.transform.rotation = Quaternion.Euler(0, angle, 0);
 
             sliceModeTransitionTimer += Time.deltaTime;
-            if(sliceModeTransitionTimer < sliceModeTransitionDuration)
+            if (sliceModeTransitionTimer < sliceModeTransitionDuration)
             {
-                float lerpPercentage = Mathf.Min(sliceModeTransitionTimer / sliceModeTransitionDuration, 1); 
-
-                //Camera.main.fieldOfView = Mathf.Lerp(defaultFoV, sliceModeFov, lerpPercentage);
-
-                transform.position = Vector3.Lerp(lerpPositionStart, lerpPositionEnd, lerpPercentage);
-                //transform.localEulerAngles = Vector3.Lerp(defaultCameraPosition.localEulerAngles, sliceModeCameraPosition.localEulerAngles, lerpPercentage);
+                float lerpPercentage = Mathf.Min(sliceModeTransitionTimer / sliceModeTransitionDuration, 1);
+                cameraTransform.position = Vector3.Lerp(lerpStartPosition, lerpEndPosition, lerpPercentage);
             }
 
             UpdateSliceModePosition();
