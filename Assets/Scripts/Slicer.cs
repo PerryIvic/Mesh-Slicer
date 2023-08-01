@@ -44,6 +44,11 @@ public class Slicer : MonoBehaviour
     public delegate void SliceEvent();
     public SliceEvent onSlice;
 
+    [SerializeField]
+    Material materialBlue;
+
+    int fillerSubMeshIndex = -1;
+
     // Start is called before the first frame update
     void Start()
     {
@@ -142,7 +147,9 @@ public class Slicer : MonoBehaviour
         {
             Vector3[] vertices = new Vector3[] { intersectingVerts[i], intersectingVerts[(i + 1) % intersectingVerts.Count], center };
             Vector3[] normals = new Vector3[] { -cutPlane.normal, -cutPlane.normal, -cutPlane.normal };
-            Vector2[] uvs = new Vector2[] { Vector2.zero, Vector2.zero, Vector2.zero };
+
+            // Arbitrary uv coordinates since the material for the sliced area we plan to use is a solid color.
+            Vector2[] uvs = new Vector2[] { new Vector2(0, 0), new Vector2(0, 1), new Vector2(0.5f, 0.5f) }; 
 
             TriangleData currentTriangle = new TriangleData(vertices, normals, uvs, originalMesh.subMeshCount);
 
@@ -155,6 +162,8 @@ public class Slicer : MonoBehaviour
 
             FlipInvertedTriangle(currentTriangle);
             negativeMeshData.AddTriangleData(currentTriangle);
+
+            fillerSubMeshIndex = currentTriangle.subMeshIndex;
         }
     }
 
@@ -169,7 +178,7 @@ public class Slicer : MonoBehaviour
                 int triIndex2 = subMeshtriangles[i + 1];
                 int triIndex3 = subMeshtriangles[i + 2];
 
-                TriangleData triangle = TriangleData.GetTriangleData(originalMesh, triIndex1, triIndex2, triIndex3, i);
+                TriangleData triangle = TriangleData.GetTriangleData(originalMesh, triIndex1, triIndex2, triIndex3, subIndex);
 
                 bool[] vertSides =
                 {
@@ -205,7 +214,7 @@ public class Slicer : MonoBehaviour
         TriangleData positiveTriangle = new TriangleData();
         TriangleData negativeTriangle = new TriangleData();
 
-        SortVerticesIntoTrianglesClean(targetTriangle, vertSides, positiveTriangle, negativeTriangle);
+        SortVerticesIntoTriangles(targetTriangle, vertSides, positiveTriangle, negativeTriangle);
 
         TriangleData largeTriangleHalf = (positiveTriangle.vertices.Count > negativeTriangle.vertices.Count) ? positiveTriangle : negativeTriangle;
         TriangleData smallTriangleHalf = (largeTriangleHalf == positiveTriangle) ? negativeTriangle : positiveTriangle;
@@ -288,7 +297,7 @@ public class Slicer : MonoBehaviour
         return Vector3.Lerp(start, end, percentage);
     }
 
-    void SortVerticesIntoTrianglesClean(TriangleData triangle, bool[] vertSides, TriangleData positiveTriangle, TriangleData negativeTriangle)
+    void SortVerticesIntoTriangles(TriangleData triangle, bool[] vertSides, TriangleData positiveTriangle, TriangleData negativeTriangle)
     {
         for(int i = 0; i < vertSides.Length; ++i)
         {
@@ -326,17 +335,21 @@ public class Slicer : MonoBehaviour
         rb.useGravity = true;
         rb.isKinematic = false;
 
-        //rb.AddExplosionForce(100, parentObject.transform.position, 1);
         rb.AddForce(startForce, ForceMode.Impulse);
 
         Mesh finishedMesh = meshData.GetGeneratedMesh();
 
-        Material parentMaterial = parentObject.GetComponent<MeshRenderer>().material;
+        Material[] parentMaterials = parentObject.GetComponent<MeshRenderer>().materials;
         Material[] mats = new Material[finishedMesh.subMeshCount];
-        for (int i = 0; i < finishedMesh.subMeshCount; ++i)
+
+        // Size of parentMaterials correspond to the parents current amount of submeshes.
+        for (int i = 0; i < parentMaterials.Length; ++i)
         {
-            mats[i] = parentMaterial;
+            mats[i] = parentMaterials[i];
         }
+
+        // TODO Instead of applying parentMaterial to all subMeshes, use subMesh material for subMesh.
+        mats[fillerSubMeshIndex] = materialBlue;
 
         MeshCollider meshColl = go.GetComponent<MeshCollider>();
         meshColl.sharedMesh = finishedMesh;

@@ -211,13 +211,8 @@ public class PlayerController : MonoBehaviour
 
     void UpdateSliceModePosition()
     {
-        Transform previousParent = bladeTargetTransform.transform.parent;
-
-        bladeTargetTransform.SetParent(transform);
-
-        Vector3 pos = bladeTargetTransform.localPosition;
-
-        bladeTargetTransform.SetParent(previousParent);
+        // Gives us the localPosition of bladeTargetTransform in the slicer planes parent space. Which tells us the localPosition of the bladeTargertTransform when the slicer plane changes rotation.
+        Vector3 pos = transform.InverseTransformPoint(bladeTargetTransform.position);
 
         playerAnimator.SetFloat(animPosXTrigger, pos.x);
         playerAnimator.SetFloat(animPosYTrigger, pos.y);
