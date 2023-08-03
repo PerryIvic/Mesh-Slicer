@@ -45,9 +45,7 @@ public class Slicer : MonoBehaviour
     public SliceEvent onSlice;
 
     [SerializeField]
-    Material materialBlue;
-
-    int fillerSubMeshIndex = -1;
+    Material slicedMaterial;
 
     // Start is called before the first frame update
     void Start()
@@ -162,8 +160,6 @@ public class Slicer : MonoBehaviour
 
             FlipInvertedTriangle(currentTriangle);
             negativeMeshData.AddTriangleData(currentTriangle);
-
-            fillerSubMeshIndex = currentTriangle.subMeshIndex;
         }
     }
 
@@ -348,8 +344,8 @@ public class Slicer : MonoBehaviour
             mats[i] = parentMaterials[i];
         }
 
-        // TODO Instead of applying parentMaterial to all subMeshes, use subMesh material for subMesh.
-        mats[fillerSubMeshIndex] = materialBlue;
+        // Adding material to sliced area.
+        mats[finishedMesh.subMeshCount - 1] = slicedMaterial;
 
         MeshCollider meshColl = go.GetComponent<MeshCollider>();
         meshColl.sharedMesh = finishedMesh;

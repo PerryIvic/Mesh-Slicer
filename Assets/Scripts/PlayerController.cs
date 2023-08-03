@@ -4,6 +4,7 @@ using System.Threading;
 using UnityEditor.UI;
 using UnityEngine;
 using UnityEngine.Experimental.AI;
+using UnityEngine.Serialization;
 
 public class PlayerController : MonoBehaviour
 {
@@ -41,6 +42,11 @@ public class PlayerController : MonoBehaviour
     Vector3 cameraRotation;
     float playerDistance;
 
+    float defaultFov;
+
+    [SerializeField]
+    float sliceModeFov = 40;
+
     Vector3 lerpStartPosition;
     Vector3 lerpEndPosition;
 
@@ -67,6 +73,11 @@ public class PlayerController : MonoBehaviour
     readonly int animPosXTrigger = Animator.StringToHash("Pos X");
     readonly int animPosYTrigger = Animator.StringToHash("Pos Y");
 
+    // Slow Motion
+    float defaultTimeScale;
+    float defaultFixedDeltaTime;
+    float slowTimeScale = 0.4f;
+
     // Start is called before the first frame update
     void Start()
     {
@@ -92,6 +103,11 @@ public class PlayerController : MonoBehaviour
         lerpEndPosition = defaultCameraTransform.position;
 
         defaultBladeTargetPosition = bladeTargetTransform.localPosition;
+
+        defaultTimeScale = Time.timeScale;
+        defaultFixedDeltaTime = Time.fixedDeltaTime;
+
+        defaultFov = Camera.main.fieldOfView;
     }
 
     private void OnDestroy()
@@ -120,6 +136,9 @@ public class PlayerController : MonoBehaviour
             lerpEndPosition = sliceModeCameraTransform.position;
 
             bladeTargetTransform.localPosition = defaultBladeTargetPosition;
+
+            Time.timeScale = slowTimeScale;
+            Time.fixedDeltaTime = defaultFixedDeltaTime * slowTimeScale;
         }
 
         if(Input.GetMouseButtonUp(1))
@@ -133,6 +152,9 @@ public class PlayerController : MonoBehaviour
 
             lerpStartPosition = sliceModeCameraTransform.position;
             lerpEndPosition = defaultCameraTransform.position;
+
+            Time.timeScale = defaultTimeScale;
+            Time.fixedDeltaTime = defaultFixedDeltaTime;
         }
 
         if (!Input.GetMouseButton(1))
@@ -141,6 +163,8 @@ public class PlayerController : MonoBehaviour
             if (sliceModeTransitionTimer < sliceModeTransitionDuration)
             {
                 float lerpPercentage = Mathf.Min(sliceModeTransitionTimer / sliceModeTransitionDuration, 1);
+
+                Camera.main.fieldOfView = Mathf.Lerp(sliceModeFov, defaultFov, lerpPercentage);
                 cameraTransform.position = Vector3.Lerp(lerpStartPosition, lerpEndPosition, lerpPercentage);
             }
             else
@@ -159,6 +183,8 @@ public class PlayerController : MonoBehaviour
             if (sliceModeTransitionTimer < sliceModeTransitionDuration)
             {
                 float lerpPercentage = Mathf.Min(sliceModeTransitionTimer / sliceModeTransitionDuration, 1);
+
+                Camera.main.fieldOfView = Mathf.Lerp(defaultFov, sliceModeFov, lerpPercentage);
                 cameraTransform.position = Vector3.Lerp(lerpStartPosition, lerpEndPosition, lerpPercentage);
             }
 
