@@ -187,7 +187,7 @@ public class PlayerController : MonoBehaviour
                 Camera.main.fieldOfView = Mathf.Lerp(defaultFov, sliceModeFov, lerpPercentage);
                 cameraTransform.position = Vector3.Lerp(lerpStartPosition, lerpEndPosition, lerpPercentage);
             }
-
+            
             UpdateSliceModePosition();
         }
     }

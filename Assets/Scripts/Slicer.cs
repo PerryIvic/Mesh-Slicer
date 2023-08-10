@@ -144,22 +144,22 @@ public class Slicer : MonoBehaviour
         for (int i = 0; i < intersectingVerts.Count - 1; i += 2)
         {
             Vector3[] vertices = new Vector3[] { intersectingVerts[i], intersectingVerts[(i + 1) % intersectingVerts.Count], center };
-            Vector3[] normals = new Vector3[] { -cutPlane.normal, -cutPlane.normal, -cutPlane.normal };
+            Vector3[] flippedNormals = new Vector3[] { -cutPlane.normal, -cutPlane.normal, -cutPlane.normal };
 
             // Arbitrary uv coordinates since the material for the sliced area we plan to use is a solid color.
             Vector2[] uvs = new Vector2[] { new Vector2(0, 0), new Vector2(0, 1), new Vector2(0.5f, 0.5f) }; 
 
-            TriangleData currentTriangle = new TriangleData(vertices, normals, uvs, originalMesh.subMeshCount);
+            TriangleData positiveTriangle = new TriangleData(vertices, flippedNormals, uvs, originalMesh.subMeshCount);
 
-            FlipInvertedTriangle(currentTriangle);
-            positiveMeshData.AddTriangleData(currentTriangle);
+            FlipInvertedTriangle(positiveTriangle);
+            positiveMeshData.AddTriangleData(positiveTriangle);
 
-            normals = new Vector3[] { cutPlane.normal, cutPlane.normal, cutPlane.normal };
+            Vector3[] normals = new Vector3[] { cutPlane.normal, cutPlane.normal, cutPlane.normal };
 
-            currentTriangle = new TriangleData(vertices, normals, uvs, originalMesh.subMeshCount);
+            TriangleData negativeTriangle = new TriangleData(vertices, normals, uvs, originalMesh.subMeshCount);
 
-            FlipInvertedTriangle(currentTriangle);
-            negativeMeshData.AddTriangleData(currentTriangle);
+            FlipInvertedTriangle(negativeTriangle);
+            negativeMeshData.AddTriangleData(negativeTriangle);
         }
     }
 
@@ -216,48 +216,63 @@ public class Slicer : MonoBehaviour
         TriangleData smallTriangleHalf = (largeTriangleHalf == positiveTriangle) ? negativeTriangle : positiveTriangle;
 
         // Calculate intersecting vertice data
-        float hitDistance = 0;
-        Vector3 leftVert = GetVerticeRayCastPlane(cutPlane, largeTriangleHalf.vertices[0], smallTriangleHalf.vertices[0], out hitDistance);
+
+        Vector3 leftRayDir = (smallTriangleHalf.vertices[0] - largeTriangleHalf.vertices[0]);
+        float leftHitDistance;
+        cutPlane.Raycast(new Ray(largeTriangleHalf.vertices[0], leftRayDir.normalized), out leftHitDistance);
+
+        float leftPercentage = leftHitDistance / leftRayDir.magnitude;
+
+        Vector3 leftVert = Vector3.Lerp(largeTriangleHalf.vertices[0], smallTriangleHalf.vertices[0], leftPercentage);
+        Vector3 leftNormal = Vector3.Lerp(largeTriangleHalf.normals[0], smallTriangleHalf.normals[0], leftPercentage);
+        Vector2 leftUV = Vector2.Lerp(largeTriangleHalf.uvs[0], smallTriangleHalf.uvs[0], leftPercentage);
         intersectingVertices.Add(leftVert);
 
-        float percentage = hitDistance / (largeTriangleHalf.vertices[0] - smallTriangleHalf.vertices[0]).magnitude;
+        float rightHitDistance;
+        Vector3 rightRayDir = (smallTriangleHalf.vertices[0] - largeTriangleHalf.vertices[1]);
+        cutPlane.Raycast(new Ray(largeTriangleHalf.vertices[1], rightRayDir.normalized), out rightHitDistance);
 
-        Vector3 leftNormal = Vector3.Lerp(largeTriangleHalf.normals[0], smallTriangleHalf.normals[0], percentage);
-        Vector2 leftUV = Vector2.Lerp(largeTriangleHalf.uvs[0], smallTriangleHalf.uvs[0], percentage);
+        float rightPercentage = rightHitDistance / rightRayDir.magnitude;
 
-        Vector3 rightVert = GetVerticeRayCastPlane(cutPlane, largeTriangleHalf.vertices[1], smallTriangleHalf.vertices[0], out hitDistance);
+        Vector3 rightVert = Vector3.Lerp(largeTriangleHalf.vertices[1], smallTriangleHalf.vertices[0], rightPercentage);
+        Vector3 rightNormal = Vector3.Lerp(largeTriangleHalf.normals[1], smallTriangleHalf.normals[0], rightPercentage);
+        Vector2 rightUV = Vector2.Lerp(largeTriangleHalf.uvs[1], smallTriangleHalf.uvs[0], rightPercentage);
         intersectingVertices.Add(rightVert);
 
-        percentage = hitDistance / (largeTriangleHalf.vertices[1] - smallTriangleHalf.vertices[0]).magnitude;
-
-        Vector3 rightNormal = Vector3.Lerp(largeTriangleHalf.normals[1], smallTriangleHalf.normals[0], percentage);
-        Vector2 rightUV = Vector2.Lerp(largeTriangleHalf.uvs[1], smallTriangleHalf.uvs[0], percentage);
-
         //Create three triangles then sort them to the proper mesh
-        Vector3[] currentVertices = { largeTriangleHalf.vertices[0], leftVert, rightVert };
-        Vector3[] currentnormals = { largeTriangleHalf.normals[0], leftNormal, rightNormal };
-        Vector2[] currentUVs = { largeTriangleHalf.uvs[0], leftUV, rightUV };
+        Vector3[] currentVertices1 = { largeTriangleHalf.vertices[0], leftVert, rightVert };
+        Vector3[] currentnormals1 = { largeTriangleHalf.normals[0], leftNormal, rightNormal };
+        Vector2[] currentUVs1 = { largeTriangleHalf.uvs[0], leftUV, rightUV };
 
-        TriangleData currentTriangle = new TriangleData(currentVertices, currentnormals, currentUVs, targetTriangle.subMeshIndex);
-        FlipInvertedTriangle(currentTriangle);
-        if (largeTriangleHalf == positiveTriangle) positiveMeshData.AddTriangleData(currentTriangle); else negativeMeshData.AddTriangleData(currentTriangle);
+        TriangleData triangle1 = new TriangleData(currentVertices1, currentnormals1, currentUVs1, targetTriangle.subMeshIndex);
+        FlipInvertedTriangle(triangle1);
 
-        currentVertices = new Vector3[] { largeTriangleHalf.vertices[0], largeTriangleHalf.vertices[1], rightVert };
-        currentnormals = new Vector3[] { largeTriangleHalf.normals[0], largeTriangleHalf.normals[1], rightNormal };
-        currentUVs = new Vector2[] { largeTriangleHalf.uvs[0], largeTriangleHalf.uvs[1], rightUV };
+        Vector3[] currentVertices2 = new Vector3[] { largeTriangleHalf.vertices[0], largeTriangleHalf.vertices[1], rightVert };
+        Vector3[] currentnormals2 = new Vector3[] { largeTriangleHalf.normals[0], largeTriangleHalf.normals[1], rightNormal };
+        Vector2[] currentUVs2 = new Vector2[] { largeTriangleHalf.uvs[0], largeTriangleHalf.uvs[1], rightUV };
 
-        currentTriangle = new TriangleData(currentVertices, currentnormals, currentUVs, targetTriangle.subMeshIndex);
-        FlipInvertedTriangle(currentTriangle);
-        if (largeTriangleHalf == positiveTriangle) positiveMeshData.AddTriangleData(currentTriangle); else negativeMeshData.AddTriangleData(currentTriangle);
+        TriangleData triangle2 = new TriangleData(currentVertices2, currentnormals2, currentUVs2, targetTriangle.subMeshIndex);
+        FlipInvertedTriangle(triangle2);
 
-        currentVertices = new Vector3[] { smallTriangleHalf.vertices[0], leftVert, rightVert };
-        currentnormals = new Vector3[] { smallTriangleHalf.normals[0], leftNormal, rightNormal };
-        currentUVs = new Vector2[] { smallTriangleHalf.uvs[0], leftUV, rightUV };
+        Vector3[] currentVertices3 = new Vector3[] { smallTriangleHalf.vertices[0], leftVert, rightVert };
+        Vector3[] currentnormals3 = new Vector3[] { smallTriangleHalf.normals[0], leftNormal, rightNormal };
+        Vector2[] currentUVs3 = new Vector2[] { smallTriangleHalf.uvs[0], leftUV, rightUV };
 
-        currentTriangle = new TriangleData(currentVertices, currentnormals, currentUVs, targetTriangle.subMeshIndex);
-        FlipInvertedTriangle(currentTriangle);
-        if (smallTriangleHalf == positiveTriangle) positiveMeshData.AddTriangleData(currentTriangle); else negativeMeshData.AddTriangleData(currentTriangle);
+        TriangleData triangle3 = new TriangleData(currentVertices3, currentnormals3, currentUVs3, targetTriangle.subMeshIndex);
+        FlipInvertedTriangle(triangle3);
 
+        if(largeTriangleHalf == positiveTriangle)
+        {
+            positiveMeshData.AddTriangleData(triangle1);
+            positiveMeshData.AddTriangleData(triangle2);
+            negativeMeshData.AddTriangleData(triangle3);
+        }
+        else
+        {
+            negativeMeshData.AddTriangleData(triangle1);
+            negativeMeshData.AddTriangleData(triangle2);
+            positiveMeshData.AddTriangleData(triangle3);
+        }
     }
 
     void FlipInvertedTriangle(TriangleData triangle)
@@ -283,14 +298,6 @@ public class Slicer : MonoBehaviour
         Vector2 tempUV = triangle.uvs[2];
         triangle.uvs[2] = triangle.uvs[0];
         triangle.uvs[0] = tempUV;
-    }
-
-    Vector3 GetVerticeRayCastPlane(Plane cutPlane, Vector3 start, Vector3 end, out float hitDistance)
-    {
-        cutPlane.Raycast(new Ray(start, (end - start).normalized), out hitDistance);
-
-        float percentage = hitDistance / (end - start).magnitude;
-        return Vector3.Lerp(start, end, percentage);
     }
 
     void SortVerticesIntoTriangles(TriangleData triangle, bool[] vertSides, TriangleData positiveTriangle, TriangleData negativeTriangle)
