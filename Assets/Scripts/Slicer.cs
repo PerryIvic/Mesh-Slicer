@@ -8,20 +8,6 @@ using static UnityEngine.Networking.UnityWebRequest;
 using static UnityEngine.Random;
 using System.Runtime.InteropServices.WindowsRuntime;
 
-/*
- * 1. Find intersection Positions
- * 2. Find Center of Intersection
- * 3. Create Two Meshes
- * 4. Use Plane normal to determine which side to create
- * 5. Determine which vertices are on the same side as the plane normal
- * 6. Using intersection points, rebind all vertices indices while ignoring 
- * the vertices on the other half of the plane. 
- * 7.  Repeat process to other side.
- * 8. Instantiate two new gameobjects with each mesh and colliders.
- * 9. Delete current mesh.
- * 10. Slice Complete!
- */
-
 public class Slicer : MonoBehaviour
 {
     public LayerMask collisionMask;
@@ -288,16 +274,16 @@ public class Slicer : MonoBehaviour
     void FlipTriangle(TriangleData triangle)
     {
         Vector3 tempVertice = triangle.vertices[2];
-        triangle.vertices[2] = triangle.vertices[0];
-        triangle.vertices[0] = tempVertice;
+        triangle.vertices[2] = triangle.vertices[1];
+        triangle.vertices[1] = tempVertice;
 
         Vector3 tempNormal = triangle.normals[2];
-        triangle.normals[2] = triangle.normals[0];
-        triangle.normals[0] = tempNormal;
+        triangle.normals[2] = triangle.normals[1];
+        triangle.normals[1] = tempNormal;
 
         Vector2 tempUV = triangle.uvs[2];
-        triangle.uvs[2] = triangle.uvs[0];
-        triangle.uvs[0] = tempUV;
+        triangle.uvs[2] = triangle.uvs[1];
+        triangle.uvs[1] = tempUV;
     }
 
     void SortVerticesIntoTriangles(TriangleData triangle, bool[] vertSides, TriangleData positiveTriangle, TriangleData negativeTriangle)
