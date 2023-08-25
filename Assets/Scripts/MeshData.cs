@@ -12,6 +12,14 @@ public class MeshData
 
     public List<List<int>> subMeshIndices = new List<List<int>>();
 
+    public void Clear()
+    {
+        vertices.Clear();
+        normals.Clear();
+        uvs.Clear();
+        subMeshIndices.Clear();
+    }
+
     public void AddTriangleData(TriangleData triData)
     {
         int currentVerticeCount = vertices.Count;

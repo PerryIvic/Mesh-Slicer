@@ -90,19 +90,25 @@ public class Slicer : MonoBehaviour
     {
         Collider[] hits = Physics.OverlapBox(transform.position, planeHalfExtents, transform.rotation, collisionMask);
 
-        for(int i = 0; i < hits.Length; ++i)
+        Plane cutPlane = new Plane();
+
+        MeshData positiveMeshData = new MeshData();
+        MeshData negativeMeshData = new MeshData();
+
+        List<Vector3> intersectingPoints = new List<Vector3>();
+
+        for (int i = 0; i < hits.Length; ++i)
         {
+            positiveMeshData.Clear();
+            negativeMeshData.Clear();
+            intersectingPoints.Clear();
+
             GameObject hitObj = hits[i].gameObject;
 
             Vector3 localPlaneNormal = hitObj.transform.InverseTransformDirection(transform.up);
             Vector3 localPlanePosition = hitObj.transform.InverseTransformPoint(transform.position);
-
-            Plane cutPlane = new Plane();
+            
             cutPlane.SetNormalAndPosition(localPlaneNormal, localPlanePosition);
-
-            MeshData positiveMeshData = new MeshData();
-            MeshData negativeMeshData = new MeshData();
-            List<Vector3> intersectingPoints = new List<Vector3>();
 
             Mesh originalMesh = hitObj.GetComponent<MeshFilter>().mesh;
 
@@ -151,7 +157,8 @@ public class Slicer : MonoBehaviour
 
     void SliceMesh(Mesh originalMesh, MeshData positiveMeshData, MeshData negativeMeshData, Plane cutPlane, List<Vector3> intersectingVerts)
     {
-        for(int subIndex = 0; subIndex < originalMesh.subMeshCount; ++subIndex)
+        IList<bool> vertSides = null;
+        for (int subIndex = 0; subIndex < originalMesh.subMeshCount; ++subIndex)
         {
             int[] subMeshtriangles = originalMesh.GetTriangles(subIndex);
             for(int i = 0; i < subMeshtriangles.Length; i += 3)
@@ -162,14 +169,14 @@ public class Slicer : MonoBehaviour
 
                 TriangleData triangle = TriangleData.GetTriangleData(originalMesh, triIndex1, triIndex2, triIndex3, subIndex);
 
-                bool[] vertSides =
+                vertSides = Array.AsReadOnly(new bool[]
                 {
                     cutPlane.GetSide(triangle.vertices[0]),
                     cutPlane.GetSide(triangle.vertices[1]),
                     cutPlane.GetSide(triangle.vertices[2])
-                };
+                });
 
-                switch(vertSides[0])
+                switch (vertSides[0])
                 {
                     case true when vertSides[1] && vertSides[2]: // all vertices are on the positive side of the plane
                         {
@@ -191,7 +198,7 @@ public class Slicer : MonoBehaviour
         }
     }
 
-    void SliceTriangle(Plane cutPlane, TriangleData targetTriangle, bool[] vertSides, MeshData positiveMeshData, MeshData negativeMeshData, List<Vector3> intersectingVertices)
+    void SliceTriangle(Plane cutPlane, TriangleData targetTriangle, IList<bool> vertSides, MeshData positiveMeshData, MeshData negativeMeshData, List<Vector3> intersectingVertices)
     {
         TriangleData positiveTriangle = new TriangleData();
         TriangleData negativeTriangle = new TriangleData();
@@ -286,9 +293,9 @@ public class Slicer : MonoBehaviour
         triangle.uvs[1] = tempUV;
     }
 
-    void SortVerticesIntoTriangles(TriangleData triangle, bool[] vertSides, TriangleData positiveTriangle, TriangleData negativeTriangle)
+    void SortVerticesIntoTriangles(TriangleData triangle, IList<bool> vertSides, TriangleData positiveTriangle, TriangleData negativeTriangle)
     {
-        for(int i = 0; i < vertSides.Length; ++i)
+        for(int i = 0; i < vertSides.Count; ++i)
         {
             if (vertSides[i])
             {
