@@ -10,7 +10,3 @@ https://perryivic.wixsite.com/portfolio/mesh-slicer
 
 
 
-Tips:
-
-- If you want an object to be unsliceable then put them in the "Unsliceable" layer.
-- Slicer.cs has an event onSlice that triggers when Slicer.Slice() is used.
