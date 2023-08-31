@@ -7,20 +7,24 @@ using UnityEngine.Serialization;
 
 public class PlayerController : MonoBehaviour
 {
+    [Header("Player")]
+
     [SerializeField]
     GameObject playerObject;
 
-    CharacterController playerController;
-
-    Transform cameraTransform;
+    [SerializeField]
+    GameObject katanaObject;
 
     [SerializeField]
     Transform bladeTargetTransform;
 
+    CharacterController playerController;
+    Slicer slicer;
+
+    Vector3 defaultLocalSliceRotation;
     Vector3 defaultBladeTargetPosition;
 
-    [SerializeField]
-    GameObject katanaObject;
+    [Header("Camera Positions")]
 
     [SerializeField]
     Transform defaultCameraTarget;
@@ -31,34 +35,37 @@ public class PlayerController : MonoBehaviour
     [SerializeField]
     Transform sliceModeCameraTransform;
 
-    [SerializeField]
-    float mouseSensitivity = 2;
-
-    Slicer slicer;
-    Vector3 defaultLocalSliceRotation;
-
-    // Camera Variables
+    Transform cameraTransform;
     Vector3 cameraRotation;
     float playerDistance;
 
-    float defaultFov;
+    [Header("Movement Settings")]
 
     [SerializeField]
-    float sliceModeFov = 40;
-
-    Vector3 lerpStartPosition;
-    Vector3 lerpEndPosition;
-
-    // Character Movement Variables
-    float turnSmoothTime = 0.1f;
-    float turnSmoothVelocity;
+    float mouseSensitivity = 2;
 
     [SerializeField]
     float movementSpeed = 50;
 
+    float turnSmoothTime = 0.1f;
+    float turnSmoothVelocity;
+
+    [Header("Slice Mode")]
+
+    [SerializeField]
+    float sliceModeFov = 40;
+
+    float defaultFov;
+
     [SerializeField]
     float sliceModeTransitionDuration = 1f;
     float sliceModeTransitionTimer;
+
+    Vector3 lerpStartPosition;
+    Vector3 lerpEndPosition;
+
+    float lerpStartFov;
+    float lerpEndFov;
 
     // Player Animator
     Animator playerAnimator;
@@ -79,33 +86,31 @@ public class PlayerController : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+        playerController = playerObject.GetComponent<CharacterController>();
+        playerAnimator = playerObject.GetComponent<Animator>();
+
+        cameraTransform = Camera.main.transform;
+
         Cursor.visible = false;
         Cursor.lockState = CursorLockMode.Locked;
 
         slicer = GetComponentInChildren<Slicer>();
         slicer.onSlice += FlipBladeTargetPosition;
         slicer.SetVisibility(false);
-
-        defaultLocalSliceRotation = new Vector3(0, 0, 90);
+        katanaObject.SetActive(false);
 
         playerDistance = (transform.position - defaultCameraTarget.transform.position).magnitude;
 
-        playerController = playerObject.GetComponent<CharacterController>();
-        playerAnimator = playerObject.GetComponent<Animator>();
-
-        katanaObject.SetActive(false);
-
-        cameraTransform = Camera.main.transform;
+        defaultLocalSliceRotation = new Vector3(0, 0, 90);
+        defaultBladeTargetPosition = bladeTargetTransform.localPosition;
+        defaultTimeScale = Time.timeScale;
+        defaultFixedDeltaTime = Time.fixedDeltaTime;
+        defaultFov = Camera.main.fieldOfView;
 
         lerpStartPosition = defaultCameraTransform.position;
         lerpEndPosition = defaultCameraTransform.position;
-
-        defaultBladeTargetPosition = bladeTargetTransform.localPosition;
-
-        defaultTimeScale = Time.timeScale;
-        defaultFixedDeltaTime = Time.fixedDeltaTime;
-
-        defaultFov = Camera.main.fieldOfView;
+        lerpStartFov = defaultFov;
+        lerpEndFov = defaultFov;
     }
 
     private void OnDestroy()
@@ -118,52 +123,19 @@ public class PlayerController : MonoBehaviour
     {
         if(Input.GetMouseButtonDown(1))
         {
-            playerAnimator.SetFloat(animPosXTrigger, 0);
-            playerAnimator.SetFloat(animPosYTrigger, 1);
-
-            SetAnimationOnce(animSliceModeTrigger);
-
-            katanaObject.SetActive(true);
-
-            slicer.transform.localEulerAngles = defaultLocalSliceRotation;
-            slicer.SetVisibility(true);
-
-            sliceModeTransitionTimer = 0;
-
-            lerpStartPosition = defaultCameraTransform.position;
-            lerpEndPosition = sliceModeCameraTransform.position;
-
-            bladeTargetTransform.localPosition = defaultBladeTargetPosition;
-
-            Time.timeScale = slowTimeScale;
-            Time.fixedDeltaTime = defaultFixedDeltaTime * slowTimeScale;
+            SetSliceModeState(true);
         }
 
         if(Input.GetMouseButtonUp(1))
         {
-            SetAnimationOnce(animIdleTrigger);
-
-            katanaObject.SetActive(false);
-            slicer.SetVisibility(false);
-
-            sliceModeTransitionTimer = 0;
-
-            lerpStartPosition = sliceModeCameraTransform.position;
-            lerpEndPosition = defaultCameraTransform.position;
-
-            Time.timeScale = defaultTimeScale;
-            Time.fixedDeltaTime = defaultFixedDeltaTime;
+            SetSliceModeState(false);
         }
 
         if (!Input.GetMouseButton(1))
         {
-            sliceModeTransitionTimer += Time.deltaTime;
-            if (sliceModeTransitionTimer < sliceModeTransitionDuration)
+            if (IsTransitioningToSliceMode())
             {
-                float lerpPercentage = Mathf.Min(sliceModeTransitionTimer / sliceModeTransitionDuration, 1);
-
-                Camera.main.fieldOfView = Mathf.Lerp(sliceModeFov, defaultFov, lerpPercentage);
-                cameraTransform.position = Vector3.Lerp(lerpStartPosition, lerpEndPosition, lerpPercentage);
+                UpdateSliceModeTransition();
             }
             else
             {
@@ -173,35 +145,31 @@ public class PlayerController : MonoBehaviour
         }
         else
         {
-            // Match characters rotation with camera
+            // Match character rotation with camera rotation
             float angle = Mathf.SmoothDampAngle(playerObject.transform.eulerAngles.y, transform.eulerAngles.y, ref turnSmoothVelocity, turnSmoothTime);
             playerObject.transform.rotation = Quaternion.Euler(0, angle, 0);
 
-            sliceModeTransitionTimer += Time.deltaTime;
-            if (sliceModeTransitionTimer < sliceModeTransitionDuration)
+            if (IsTransitioningToSliceMode())
             {
-                float lerpPercentage = Mathf.Min(sliceModeTransitionTimer / sliceModeTransitionDuration, 1);
-
-                Camera.main.fieldOfView = Mathf.Lerp(defaultFov, sliceModeFov, lerpPercentage);
-                cameraTransform.position = Vector3.Lerp(lerpStartPosition, lerpEndPosition, lerpPercentage);
+                UpdateSliceModeTransition();
             }
-            
+
             UpdateSliceModePosition();
         }
     }
 
     void UpdateCamera()
     {
-        Vector3 delta = Vector3.zero;
-        delta.x = Input.GetAxis("Mouse X");
-        delta.y = Input.GetAxis("Mouse Y");
-        delta *= mouseSensitivity;
+        Vector3 mouseDelta = Vector3.zero;
+        mouseDelta.x = Input.GetAxis("Mouse X");
+        mouseDelta.y = Input.GetAxis("Mouse Y");
+        mouseDelta *= mouseSensitivity;
 
-        cameraRotation.x += delta.x; 
-        cameraRotation.y += delta.y;
+        cameraRotation.x += mouseDelta.x; 
+        cameraRotation.y += mouseDelta.y;
         cameraRotation.y = Mathf.Clamp(cameraRotation.y, -90, 90);
 
-        transform.eulerAngles = new Vector3(-cameraRotation.y, transform.eulerAngles.y + delta.x, 0);
+        transform.eulerAngles = new Vector3(-cameraRotation.y, transform.eulerAngles.y + mouseDelta.x, 0);
 
         transform.position = defaultCameraTarget.transform.position - (transform.forward * playerDistance);
     }
@@ -255,5 +223,66 @@ public class PlayerController : MonoBehaviour
     {
         Vector3 oldPos = bladeTargetTransform.localPosition;
         bladeTargetTransform.localPosition = new Vector3(oldPos.x * -1, -oldPos.y * -1, oldPos.z);
+    }
+
+    void SetSliceModeState(bool shouldBeActive)
+    {
+        if(shouldBeActive)
+        {
+            SetAnimationOnce(animSliceModeTrigger);
+
+            playerAnimator.SetFloat(animPosXTrigger, 0);
+            playerAnimator.SetFloat(animPosYTrigger, 1);
+
+            katanaObject.SetActive(true);
+            slicer.SetVisibility(true);
+
+            slicer.transform.localEulerAngles = defaultLocalSliceRotation;
+            sliceModeTransitionTimer = 0;
+
+            lerpStartPosition = defaultCameraTransform.position;
+            lerpEndPosition = sliceModeCameraTransform.position;
+
+            lerpStartFov = defaultFov;
+            lerpEndFov = sliceModeFov;
+
+            bladeTargetTransform.localPosition = defaultBladeTargetPosition;
+
+            Time.timeScale = slowTimeScale;
+            Time.fixedDeltaTime = defaultFixedDeltaTime * slowTimeScale;
+        }
+        else
+        {
+            SetAnimationOnce(animIdleTrigger);
+
+            katanaObject.SetActive(false);
+            slicer.SetVisibility(false);
+
+            sliceModeTransitionTimer = 0;
+
+            lerpStartPosition = sliceModeCameraTransform.position;
+            lerpEndPosition = defaultCameraTransform.position;
+
+            lerpStartFov = sliceModeFov;
+            lerpEndFov = defaultFov;
+
+            Time.timeScale = defaultTimeScale;
+            Time.fixedDeltaTime = defaultFixedDeltaTime;
+        }
+    }
+
+    bool IsTransitioningToSliceMode()
+    {
+        return (sliceModeTransitionTimer < sliceModeTransitionDuration);
+    }
+
+    void UpdateSliceModeTransition()
+    {
+        sliceModeTransitionTimer += Time.deltaTime;
+
+        float lerpPercentage = Mathf.Min(sliceModeTransitionTimer / sliceModeTransitionDuration, 1);
+
+        Camera.main.fieldOfView = Mathf.Lerp(lerpStartFov, lerpEndFov, lerpPercentage);
+        cameraTransform.position = Vector3.Lerp(lerpStartPosition, lerpEndPosition, lerpPercentage);
     }
 }
