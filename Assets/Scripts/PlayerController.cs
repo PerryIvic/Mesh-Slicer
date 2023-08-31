@@ -133,9 +133,9 @@ public class PlayerController : MonoBehaviour
 
         if (!Input.GetMouseButton(1))
         {
-            if (IsTransitioningToSliceMode())
+            if (IsTransitioningCamera())
             {
-                UpdateSliceModeTransition();
+                UpdateCameraTransition();
             }
             else
             {
@@ -149,9 +149,9 @@ public class PlayerController : MonoBehaviour
             float angle = Mathf.SmoothDampAngle(playerObject.transform.eulerAngles.y, transform.eulerAngles.y, ref turnSmoothVelocity, turnSmoothTime);
             playerObject.transform.rotation = Quaternion.Euler(0, angle, 0);
 
-            if (IsTransitioningToSliceMode())
+            if (IsTransitioningCamera())
             {
-                UpdateSliceModeTransition();
+                UpdateCameraTransition();
             }
 
             UpdateSliceModePosition();
@@ -271,12 +271,12 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    bool IsTransitioningToSliceMode()
+    bool IsTransitioningCamera()
     {
         return (sliceModeTransitionTimer < sliceModeTransitionDuration);
     }
 
-    void UpdateSliceModeTransition()
+    void UpdateCameraTransition()
     {
         sliceModeTransitionTimer += Time.deltaTime;
 
