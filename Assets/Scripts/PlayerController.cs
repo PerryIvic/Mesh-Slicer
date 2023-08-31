@@ -58,7 +58,6 @@ public class PlayerController : MonoBehaviour
 
     [SerializeField]
     float sliceModeTransitionDuration = 1f;
-
     float sliceModeTransitionTimer;
 
     // Player Animator
