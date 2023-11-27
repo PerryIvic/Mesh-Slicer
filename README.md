@@ -1,11 +1,9 @@
 # Mesh-Slicer
 
-Hello there and welcome.
+In this project I recreate a cool feature used in Metal Gear Rising Reveangance called "Blade Mode" where a player can freely split a 3D mesh into two mesh halves by controlling a plane that intersects the target meshes.
+For this mechanic to be properly realized I also added a character wielding a sword with animations (blend-tree) and implemented a custom intersection shader for the intersecting plane.
 
-This project breaks down a cool feature used in Metal Gear Solid Reveangance where a player can freely split a 3D mesh into two mesh halves by controlling a plane that intersects the target meshes.
-In order to make this mechanic to be properly realized I also added a character wielding a sword with animations (blend-tree) and implemented a custom intersection shader for the intersecting plane.
-
-I cover these three main features in depth on my [portfolio](https://perryivic.wixsite.com/portfolio/mesh-slicer):
+I cover these three main features in-depth on my [portfolio](https://perryivic.wixsite.com/portfolio/mesh-slicer):
 
 - [Mesh Slicing](https://perryivic.wixsite.com/portfolio/mesh-slicer-section)
 - [Intersection Shader](https://perryivic.wixsite.com/portfolio/intersections-shader-section)
