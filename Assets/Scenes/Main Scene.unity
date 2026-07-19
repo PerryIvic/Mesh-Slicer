@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 705507994}
-  m_IndirectSpecularColor: {r: 0.18028378, g: 0.22571412, b: 0.30692285, a: 1}
+  m_IndirectSpecularColor: {r: 0.18028352, g: 0.22571376, b: 0.30692244, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -945,15 +945,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   playerObject: {fileID: 1790843866}
-  bladeTargetTransform: {fileID: 1198129199}
   katanaObject: {fileID: 1088022999}
+  bladeTargetTransform: {fileID: 1198129199}
   defaultCameraTarget: {fileID: 759332718}
   defaultCameraTransform: {fileID: 210732024}
   sliceModeCameraTransform: {fileID: 446388754}
   mouseSensitivity: 2
-  sliceModeFov: 60
   movementSpeed: 5
-  sliceModeTransitionDuration: 0.09
+  sliceModeFov: 60
+  sliceModeTransitionDuration: 0.1
 --- !u!4 &841330077
 Transform:
   m_ObjectHideFlags: 0
@@ -3478,7 +3478,7 @@ CharacterController:
   m_Center: {x: 0, y: 1.01, z: 0}
 --- !u!95 &1790843868
 Animator:
-  serializedVersion: 3
+  serializedVersion: 5
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -3488,13 +3488,15 @@ Animator:
   m_Avatar: {fileID: 9000000, guid: 8bd3fd9850458a1469530b70ec686ea6, type: 3}
   m_Controller: {fileID: 9100000, guid: b26cb08f418be374fba8a28bdec2d799, type: 2}
   m_CullingMode: 0
-  m_UpdateMode: 0
+  m_UpdateMode: 2
   m_ApplyRootMotion: 0
   m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
   m_WarningMessage: 
   m_HasTransformHierarchy: 1
   m_AllowConstantClipSamplingOptimization: 1
-  m_KeepAnimatorControllerStateOnDisable: 0
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
 --- !u!1 &1846856239 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 1407451490957870, guid: 3ce32ffa6ccf60e4ab65d9e396f43433, type: 3}

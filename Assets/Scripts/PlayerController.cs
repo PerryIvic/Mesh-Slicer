@@ -47,7 +47,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField]
     float movementSpeed = 50;
 
-    float turnSmoothTime = 0.1f;
+    float turnSmoothTime = 0.01f;
     float turnSmoothVelocity;
 
     [Header("Slice Mode")]
@@ -81,7 +81,7 @@ public class PlayerController : MonoBehaviour
     // Slow Motion
     float defaultTimeScale;
     float defaultFixedDeltaTime;
-    float slowTimeScale = 0.4f;
+    float slowTimeScale = 0.1f;
 
     // Start is called before the first frame update
     void Start()
@@ -193,7 +193,7 @@ public class PlayerController : MonoBehaviour
             Vector3 moveDir = Quaternion.Euler(0, targetAngle, 0) * Vector3.forward;
             moveDir.Normalize();
 
-            playerController.Move(moveDir * movementSpeed * Time.deltaTime);
+            playerController.Move(moveDir * movementSpeed * Time.unscaledDeltaTime);
         }
         else
         {
@@ -278,7 +278,7 @@ public class PlayerController : MonoBehaviour
 
     void UpdateCameraTransition()
     {
-        sliceModeTransitionTimer += Time.deltaTime;
+        sliceModeTransitionTimer += Time.unscaledDeltaTime;
 
         float lerpPercentage = Mathf.Min(sliceModeTransitionTimer / sliceModeTransitionDuration, 1);
 

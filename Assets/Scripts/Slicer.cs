@@ -16,7 +16,7 @@ public class Slicer : MonoBehaviour
     GameObject slicedObjectParent;
 
     [SerializeField]
-    float sliceForce = 2;
+    float sliceForce = 15;
 
     [SerializeField]
     float rotationSpeed = 0;
@@ -83,7 +83,7 @@ public class Slicer : MonoBehaviour
     {
         float inversedDeltaX = Input.GetAxis("Mouse X") * -1f;
 
-        transform.Rotate(0, 0, rotationSpeed * inversedDeltaX * Time.deltaTime);
+        transform.Rotate(0, 0, rotationSpeed * inversedDeltaX * Time.unscaledDeltaTime);
     }
 
     void Slice()
@@ -330,8 +330,7 @@ public class Slicer : MonoBehaviour
         Rigidbody rb = go.GetComponent<Rigidbody>();
         rb.useGravity = true;
         rb.isKinematic = false;
-
-        rb.AddForce(startForce, ForceMode.Impulse);
+        rb.AddForce(startForce, ForceMode.VelocityChange);
 
         Mesh finishedMesh = meshData.GetGeneratedMesh();
 
